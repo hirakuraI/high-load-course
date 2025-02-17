@@ -23,6 +23,7 @@ class PaymentExternalSystemAdapterImpl(
 
     companion object {
         val logger = LoggerFactory.getLogger(PaymentExternalSystemAdapter::class.java)
+        private val PAYMENT_PROVIDER_HOST_PORT: String = System.getenv("BOMBARDIER_SERVER_IP")
 
         val emptyBody = RequestBody.create(null, ByteArray(0))
         val mapper = ObjectMapper().registerKotlinModule()
@@ -32,7 +33,7 @@ class PaymentExternalSystemAdapterImpl(
     private val accountName = properties.accountName
     private val requestAverageProcessingTime = properties.averageProcessingTime
     private val rateLimitPerSec = properties.rateLimitPerSec
-    private val rateLimiter : RateLimiter = SlidingWindowRateLimiter(10, Duration.ofSeconds(1))
+    private val rateLimiter : RateLimiter = SlidingWindowRateLimiter(7, Duration.ofSeconds(1))
     private val parallelRequests = properties.parallelRequests
 
     private val client = OkHttpClient.Builder().build()
@@ -50,7 +51,7 @@ class PaymentExternalSystemAdapterImpl(
         }
 
         val request = Request.Builder().run {
-            url("http://localhost:1234/external/process?serviceName=${serviceName}&accountName=${accountName}&transactionId=$transactionId&paymentId=$paymentId&amount=$amount")
+            url("http://${PAYMENT_PROVIDER_HOST_PORT}/external/process?serviceName=${serviceName}&accountName=${accountName}&transactionId=$transactionId&paymentId=$paymentId&amount=$amount")
             post(emptyBody)
         }.build()
 

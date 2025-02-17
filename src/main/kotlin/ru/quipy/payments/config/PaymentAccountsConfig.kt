@@ -18,7 +18,7 @@ import java.util.*
 @Configuration
 class PaymentAccountsConfig {
     companion object {
-        private val PAYMENT_PROVIDER_HOST_PORT: String = "localhost:1234"
+        private val PAYMENT_PROVIDER_HOST_PORT: String = System.getenv("BOMBARDIER_SERVER_IP")
         private val javaClient = HttpClient.newBuilder().build()
         private val mapper = ObjectMapper().registerKotlinModule().registerModules(JavaTimeModule())
     }
