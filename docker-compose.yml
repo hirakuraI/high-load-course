@@ -1,7 +1,9 @@
 services:
   postgres:
-    hostname: event_sourcing_db
+    hostname: postgres
     image: postgres:14.9-alpine
+    networks:
+      - own-external-network
     env_file:
       - ./.env
     environment:
@@ -12,14 +14,25 @@ services:
       - ${POSTGRES_CONTAINER_EXPOSED_PORT}:${POSTGRES_CONTAINER_INTERNAL_PORT}
     command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all -c max_connections=200
     restart: unless-stopped
-#  mongo:
-#    build:
-##      context: mongoDb
-#      dockerfile: mongoDb/Dockerfile
-#    restart: always
-#    ports:
-#      - 27017:27017
-#    volumes:
-#      - mongo_data:/data/db
-volumes:
-  mongo_data: { }
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - own-external-network
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+    environment:
+      BOMBARDIER_SERVER_IP: host.docker.internal:1234
+      SPRING_DATASOURCE_HIKARI_JDBC_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_HIKARI_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_HIKARI_PASSWORD: ${POSTGRES_PASSWORD}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  own-external-network:
+    driver: bridge
