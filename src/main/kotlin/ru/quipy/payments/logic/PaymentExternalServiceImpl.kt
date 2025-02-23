@@ -6,6 +6,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
+import ru.quipy.common.utils.LeakingBucketRateLimiter
+import ru.quipy.common.utils.NonBlockingOngoingWindow
 import ru.quipy.common.utils.RateLimiter
 import ru.quipy.common.utils.SlidingWindowRateLimiter
 import ru.quipy.core.EventSourcingService
@@ -34,6 +36,7 @@ class PaymentExternalSystemAdapterImpl(
     private val requestAverageProcessingTime = properties.averageProcessingTime
     private val rateLimitPerSec = properties.rateLimitPerSec
     private val rateLimiter : RateLimiter = SlidingWindowRateLimiter(7, Duration.ofSeconds(1))
+    private val leakingBucket : LeakingBucketRateLimiter = LeakingBucketRateLimiter(6, Duration.ofSeconds(3), 8)
     private val parallelRequests = properties.parallelRequests
 
     private val client = OkHttpClient.Builder().build()
@@ -57,6 +60,8 @@ class PaymentExternalSystemAdapterImpl(
 
         try {
             while(!rateLimiter.tick()) {
+            }
+            if(leakingBucket.tick()){
             }
             client.newCall(request).execute().use { response ->
                 val body = try {
