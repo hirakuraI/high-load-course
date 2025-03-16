@@ -6,12 +6,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
-import ru.quipy.common.utils.*
+import ru.quipy.common.utils.RateLimiter
+import ru.quipy.common.utils.SlidingWindowRateLimiter
+import ru.quipy.common.utils.OngoingWindow
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
 import java.net.SocketTimeoutException
 import java.time.Duration
-import java.util.*
+import java.util.UUID
+
 import java.util.concurrent.Semaphore
 
 
@@ -65,8 +68,10 @@ class PaymentExternalSystemAdapterImpl(
             }
             ongoingWindow.acquire()
             var currentTry = 1;
+            var succeedResultAchieved = false
             while (currentTry++ <= retryCount) {
-                var succeedResultAchieved = false;
+                while (!rateLimiter.tick()) {
+                }
                 if (now() + requestAverageProcessingTime.toMillis() <= deadline) {
                     client.newCall(request).execute().use { response ->
                         val body = try {
