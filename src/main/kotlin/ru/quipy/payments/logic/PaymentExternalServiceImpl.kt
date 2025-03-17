@@ -11,6 +11,7 @@ import ru.quipy.common.utils.SlidingWindowRateLimiter
 import ru.quipy.common.utils.OngoingWindow
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
+import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
 import java.time.Duration
 import java.util.UUID
@@ -44,7 +45,7 @@ class PaymentExternalSystemAdapterImpl(
     private val ongoingWindow: OngoingWindow = OngoingWindow(parallelRequests)
 
 
-    private val client = OkHttpClient.Builder().build()
+    private val client = OkHttpClient.Builder().callTimeout(Duration.ofSeconds(requestAverageProcessingTime.seconds * 2)).build()
 
     override fun performPaymentAsync(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
         logger.warn("[$accountName] Submitting payment request for payment $paymentId")
@@ -69,6 +70,7 @@ class PaymentExternalSystemAdapterImpl(
             ongoingWindow.acquire()
             var currentTry = 1;
             var succeedResultAchieved = false
+            var callTimeoutAchieved = false
             while (currentTry++ <= retryCount) {
                 while (!rateLimiter.tick()) {
                 }
@@ -76,6 +78,9 @@ class PaymentExternalSystemAdapterImpl(
                     client.newCall(request).execute().use { response ->
                         val body = try {
                             mapper.readValue(response.body?.string(), ExternalSysResponse::class.java)
+                        } catch (ioe : InterruptedIOException) {
+                            callTimeoutAchieved = true
+                            ExternalSysResponse(transactionId.toString(), paymentId.toString(), false, ioe.message)
                         } catch (e: Exception) {
                             logger.error("[$accountName] [ERROR] Payment processed for txId: $transactionId, payment: $paymentId, result code: ${response.code}, reason: ${response.body?.string()}")
                             ExternalSysResponse(transactionId.toString(), paymentId.toString(), false, e.message)
@@ -94,7 +99,7 @@ class PaymentExternalSystemAdapterImpl(
                 } else {
                     break
                 }
-                if (succeedResultAchieved) {
+                if (succeedResultAchieved || callTimeoutAchieved) {
                     break
                 }
             }
