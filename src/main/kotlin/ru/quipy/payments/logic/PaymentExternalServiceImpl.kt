@@ -6,17 +6,14 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
+import ru.quipy.common.utils.OngoingWindow
 import ru.quipy.common.utils.RateLimiter
 import ru.quipy.common.utils.SlidingWindowRateLimiter
-import ru.quipy.common.utils.OngoingWindow
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
-import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
 import java.time.Duration
-import java.util.UUID
-
-import java.util.concurrent.Semaphore
+import java.util.*
 
 
 // Advice: always treat time as a Duration
@@ -45,7 +42,8 @@ class PaymentExternalSystemAdapterImpl(
     private val ongoingWindow: OngoingWindow = OngoingWindow(parallelRequests)
 
 
-    private val client = OkHttpClient.Builder().callTimeout(Duration.ofSeconds(requestAverageProcessingTime.seconds * 2)).build()
+    private val client =
+        OkHttpClient.Builder().callTimeout(Duration.ofSeconds(requestAverageProcessingTime.seconds * 2)).build()
 
     override fun performPaymentAsync(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
         logger.warn("[$accountName] Submitting payment request for payment $paymentId")
@@ -71,7 +69,9 @@ class PaymentExternalSystemAdapterImpl(
             var currentTry = 1;
             var succeedResultAchieved = false
             while (currentTry++ <= retryCount) {
-                while (!rateLimiter.tick()) {
+                if (currentTry != 1) {
+                    while (!rateLimiter.tick()) {
+                    }
                 }
                 if (now() + requestAverageProcessingTime.toMillis() <= deadline) {
                     client.newCall(request).execute().use { response ->
