@@ -11,6 +11,7 @@ import ru.quipy.common.utils.RateLimiter
 import ru.quipy.common.utils.SlidingWindowRateLimiter
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
+import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
 import java.time.Duration
 import java.util.*
@@ -74,23 +75,29 @@ class PaymentExternalSystemAdapterImpl(
                     }
                 }
                 if (now() + requestAverageProcessingTime.toMillis() <= deadline) {
-                    client.newCall(request).execute().use { response ->
-                        val body = try {
-                            mapper.readValue(response.body?.string(), ExternalSysResponse::class.java)
-                        } catch (e: Exception) {
-                            logger.error("[$accountName] [ERROR] Payment processed for txId: $transactionId, payment: $paymentId, result code: ${response.code}, reason: ${response.body?.string()}")
-                            ExternalSysResponse(transactionId.toString(), paymentId.toString(), false, e.message)
+                    try {
+                        client.newCall(request).execute().use { response ->
+                            val body = try {
+                                mapper.readValue(response.body?.string(), ExternalSysResponse::class.java)
+                            } catch (e: Exception) {
+                                logger.error("[$accountName] [ERROR] Payment processed for txId: $transactionId, payment: $paymentId, result code: ${response.code}, reason: ${response.body?.string()}")
+                                ExternalSysResponse(transactionId.toString(), paymentId.toString(), false, e.message)
+                            }
+
+                            logger.warn("[$accountName] Payment processed for txId: $transactionId, payment: $paymentId, succeeded: ${body.result}, message: ${body.message}")
+
+                            // Здесь мы обновляем состояние оплаты в зависимости от результата в базе данных оплат.
+                            // Это требуется сделать ВО ВСЕХ ИСХОДАХ (успешная оплата / неуспешная / ошибочная ситуация)
+                            paymentESService.update(paymentId) {
+                                it.logProcessing(body.result, now(), transactionId, reason = body.message)
+                            }
+
+                            succeedResultAchieved = body.result
                         }
-
-                        logger.warn("[$accountName] Payment processed for txId: $transactionId, payment: $paymentId, succeeded: ${body.result}, message: ${body.message}")
-
-                        // Здесь мы обновляем состояние оплаты в зависимости от результата в базе данных оплат.
-                        // Это требуется сделать ВО ВСЕХ ИСХОДАХ (успешная оплата / неуспешная / ошибочная ситуация)
+                    } catch (ioe: InterruptedIOException) {
                         paymentESService.update(paymentId) {
-                            it.logProcessing(body.result, now(), transactionId, reason = body.message)
+                            it.logProcessing(false, now(), transactionId, reason = ioe.message)
                         }
-
-                        succeedResultAchieved = body.result
                     }
                 } else {
                     break
