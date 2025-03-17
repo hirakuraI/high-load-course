@@ -70,7 +70,6 @@ class PaymentExternalSystemAdapterImpl(
             ongoingWindow.acquire()
             var currentTry = 1;
             var succeedResultAchieved = false
-            var callTimeoutAchieved = false
             while (currentTry++ <= retryCount) {
                 while (!rateLimiter.tick()) {
                 }
@@ -78,9 +77,6 @@ class PaymentExternalSystemAdapterImpl(
                     client.newCall(request).execute().use { response ->
                         val body = try {
                             mapper.readValue(response.body?.string(), ExternalSysResponse::class.java)
-                        } catch (ioe : InterruptedIOException) {
-                            callTimeoutAchieved = true
-                            ExternalSysResponse(transactionId.toString(), paymentId.toString(), false, ioe.message)
                         } catch (e: Exception) {
                             logger.error("[$accountName] [ERROR] Payment processed for txId: $transactionId, payment: $paymentId, result code: ${response.code}, reason: ${response.body?.string()}")
                             ExternalSysResponse(transactionId.toString(), paymentId.toString(), false, e.message)
@@ -99,7 +95,7 @@ class PaymentExternalSystemAdapterImpl(
                 } else {
                     break
                 }
-                if (succeedResultAchieved || callTimeoutAchieved) {
+                if (succeedResultAchieved) {
                     break
                 }
             }
