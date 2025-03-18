@@ -64,15 +64,11 @@ class PaymentExternalSystemAdapterImpl(
         }.build()
 
         try {
-            while (!rateLimiter.tick()) {
-            }
             ongoingWindow.acquire()
-            var currentTry = 1;
+            var currentTry = 1
             var succeedResultAchieved = false
             while (currentTry++ <= retryCount) {
-                if (currentTry != 1) {
-                    while (!rateLimiter.tick()) {
-                    }
+                while (!rateLimiter.tick()) {
                 }
                 if (now() + requestAverageProcessingTime.toMillis() <= deadline) {
                     try {
