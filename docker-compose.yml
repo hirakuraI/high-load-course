@@ -3,7 +3,7 @@ services:
     hostname: postgres
     image: postgres:14.9-alpine
     networks:
-      - own-external-network
+      - external_network
     env_file:
       - ./.env
     environment:
@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: Dockerfile
     networks:
-      - own-external-network
+      - external_network
     ports:
       - "8081:8081"
     depends_on:
@@ -34,5 +34,5 @@ services:
       - "host.docker.internal:host-gateway"
 
 networks:
-  own-external-network:
+  external_network:
     driver: bridge
