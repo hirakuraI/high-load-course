@@ -8,5 +8,7 @@ RUN mvn package
 
 FROM openjdk:17-jdk-slim
 
-COPY --from=build /app/target/*.jar /highload.jar
-CMD ["java", "-jar", "/highload.jar"]
+COPY --from=build /app/target/*.jar /high-load-course.jar
+
+CMD ["java", "-jar", "/high-load-course.jar"]
+
