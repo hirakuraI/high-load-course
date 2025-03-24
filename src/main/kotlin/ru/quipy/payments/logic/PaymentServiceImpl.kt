@@ -9,6 +9,9 @@ import ru.quipy.payments.api.PaymentAggregate
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -19,11 +22,22 @@ class PaymentSystemImpl(
 ) : PaymentService {
     companion object {
         val logger = LoggerFactory.getLogger(PaymentSystemImpl::class.java)
+        private val pool = ThreadPoolExecutor(
+            50, // corePoolSize
+            100, // maximumPoolSize
+            10, // keepAliveTime
+            TimeUnit.MINUTES, // time unit for keepAliveTime
+            LinkedBlockingQueue(), // workQueue
+            Executors.defaultThreadFactory(), // threadFactory
+            ThreadPoolExecutor.AbortPolicy() // rejection handler
+        )
     }
 
     override fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
         for (account in paymentAccounts) {
-            account.performPaymentAsync(paymentId, amount, paymentStartedAt, deadline)
+            pool.submit(Runnable {
+                account.performPaymentAsync(paymentId, amount, paymentStartedAt, deadline)
+            })
         }
     }
 }
