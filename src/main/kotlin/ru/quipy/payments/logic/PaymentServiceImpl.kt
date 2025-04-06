@@ -18,26 +18,15 @@ import kotlin.concurrent.withLock
 
 @Service
 class PaymentSystemImpl(
-    private val paymentAccounts: List<PaymentExternalSystemAdapter>
+        private val paymentAccounts: List<PaymentExternalSystemAdapter>
 ) : PaymentService {
     companion object {
         val logger = LoggerFactory.getLogger(PaymentSystemImpl::class.java)
-        private val pool = ThreadPoolExecutor(
-            50, // corePoolSize
-            100, // maximumPoolSize
-            10, // keepAliveTime
-            TimeUnit.MINUTES, // time unit for keepAliveTime
-            LinkedBlockingQueue(), // workQueue
-            Executors.defaultThreadFactory(), // threadFactory
-            ThreadPoolExecutor.AbortPolicy() // rejection handler
-        )
     }
 
     override fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
         for (account in paymentAccounts) {
-            pool.submit(Runnable {
-                account.performPaymentAsync(paymentId, amount, paymentStartedAt, deadline)
-            })
+            account.performPaymentAsync(paymentId, amount, paymentStartedAt, deadline)
         }
     }
 }
